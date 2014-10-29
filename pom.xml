@@ -26,13 +26,27 @@
      <artifactId>jogl-all-main</artifactId>
      <version>2.0.2</version>
    </dependency>
-    -->
+
+
    
    <dependency>
     <groupId>org.saintandreas</groupId>
     <artifactId>jovr</artifactId>
     <version>0.4.1.2-SNAPSHOT</version>
   </dependency>
+-->   
+    <dependency>
+  <groupId>org.saintandreas</groupId>
+  <artifactId>jovr</artifactId>
+  <version>0.4.3.1-SNAPSHOT</version>
+</dependency>
+
+<dependency>
+    <groupId>com.google.guava</groupId>
+    <artifactId>guava</artifactId>
+    <version>18.0</version>
+</dependency>
+
   <dependency>
     <groupId>org.saintandreas</groupId>
     <artifactId>math</artifactId>

@@ -3,7 +3,6 @@ package com.sunshineapps.riftexample;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Chromatic;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_TimeWarp;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Vignette;
-import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_MagYawCorrection;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Orientation;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Position;
 
@@ -46,6 +45,7 @@ import com.oculusvr.capi.OvrLibrary.ovrEyeType;
 import com.oculusvr.capi.OvrRecti;
 import com.oculusvr.capi.OvrSizei;
 import com.oculusvr.capi.OvrVector2i;
+import com.oculusvr.capi.OvrVector3f;
 import com.oculusvr.capi.Posef;
 import com.oculusvr.capi.RenderAPIConfig;
 import com.oculusvr.capi.Texture;
@@ -65,9 +65,9 @@ public class RiftClient implements KeyListener {
     //Rift Specific
     private Hmd hmd;
     private int frameCount;
-    private EyeRenderDesc eyeRenderDescs[];
+    private final OvrVector3f eyeOffsets[] = (OvrVector3f[])new OvrVector3f().toArray(2);
     private final OvrRecti[] eyeRenderViewport = (OvrRecti[]) new OvrRecti().toArray(2);
-    private final Posef eyeRenderPose[] = (Posef[]) new Posef().toArray(2);
+    private final Posef poses[] = (Posef[]) new Posef().toArray(2);
     private final Texture eyeTextures[] = (Texture[]) new Texture().toArray(2);
     private final FovPort fovPorts[] = (FovPort[]) new FovPort().toArray(2);
     private final Matrix4f projections[] = new Matrix4f[2];
@@ -118,7 +118,12 @@ public class RiftClient implements KeyListener {
             rc.Header.RTSize = hmd.Resolution;
             rc.Header.Multisample = 1;
             int distortionCaps = ovrDistortionCap_Chromatic | ovrDistortionCap_TimeWarp | ovrDistortionCap_Vignette;
-            eyeRenderDescs = hmd.configureRendering(rc, distortionCaps, fovPorts);
+            EyeRenderDesc eyeRenderDescs[] = hmd.configureRendering(rc, distortionCaps, fovPorts);
+            for (int eye = 0; eye < 2; ++eye) {
+            	eyeOffsets[eye].x = eyeRenderDescs[eye].HmdToEyeViewOffset.x;
+            	eyeOffsets[eye].y = eyeRenderDescs[eye].HmdToEyeViewOffset.y;
+            	eyeOffsets[eye].z = eyeRenderDescs[eye].HmdToEyeViewOffset.z;
+            }
             
             leftEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Left].Size);
             rightEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Right].Size);
@@ -143,14 +148,12 @@ public class RiftClient implements KeyListener {
             hmd.beginFrameTiming(++frameCount);
             GL2 gl = drawable.getGL().getGL2();
             
-            Posef pose[] = new Posef[2];
-            pose[ovrEyeType.ovrEye_Left] = hmd.getEyePose(ovrEyeType.ovrEye_Left);
-            pose[ovrEyeType.ovrEye_Right] = hmd.getEyePose(ovrEyeType.ovrEye_Right);
-
+            Posef eyePoses[] = hmd.getEyePoses(frameCount, eyeOffsets);
             for (int eyeIndex = 0; eyeIndex < ovrEyeType.ovrEye_Count; eyeIndex++){
                 int eye = hmd.EyeRenderOrder[eyeIndex];
-                eyeRenderPose[eye].Orientation = pose[eye].Orientation;
-                eyeRenderPose[eye].Position = pose[eye].Position;
+                Posef pose = eyePoses[eye];
+                poses[eye].Orientation = pose.Orientation;
+                poses[eye].Position = pose.Position;
 
                 gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fboIds[eye]);
                 gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
@@ -162,9 +165,9 @@ public class RiftClient implements KeyListener {
                 MatrixStack mv = MatrixStack.MODELVIEW;
                 mv.push();
                 {
-                    mv.preTranslate(RiftUtils.toVector3f(eyeRenderPose[eye].Position).mult(-1));
-                    mv.preRotate(RiftUtils.toQuaternion(eyeRenderPose[eye].Orientation).inverse());
-                    mv.preTranslate(RiftUtils.toVector3f(eyeRenderDescs[eye].ViewAdjust));
+                    mv.preTranslate(RiftUtils.toVector3f(poses[eye].Position).mult(-1));
+                    mv.preRotate(RiftUtils.toQuaternion(poses[eye].Orientation).inverse());
+                   // mv.preTranslate(RiftUtils.toVector3f(eyeRenderDescs[eye].ViewAdjust));
                     mv.translate(new Vector3f(0, eyeHeight, 0 ));
                     modelviewDFB.clear();
                     MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
@@ -185,7 +188,7 @@ public class RiftClient implements KeyListener {
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
             gl.glDisable(GL2.GL_TEXTURE_2D);
             
-            hmd.endFrame(eyeRenderPose, eyeTextures);
+            hmd.endFrame(poses, eyeTextures);
         }
 
         public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
@@ -239,6 +242,11 @@ public class RiftClient implements KeyListener {
         //step 1 - hmd init
         System.out.println("step 1 - hmd init");
         Hmd.initialize();
+		try {
+			Thread.sleep(400);
+		} catch (InterruptedException e) {
+			throw new IllegalStateException(e);
+		}
         
         //step 2 - hmd create
         System.out.println("step 2 - hmd create");
@@ -246,6 +254,7 @@ public class RiftClient implements KeyListener {
         if (hmd == null) {
             System.out.println("null hmd");
             hmd = Hmd.createDebug(OvrLibrary.ovrHmdType.ovrHmd_DK2);
+            return;
         }
         hmd.enableHswDisplay(false);
         
@@ -273,7 +282,7 @@ public class RiftClient implements KeyListener {
 
         //step 4 - tracking
         System.out.println("step 4 - tracking");
-        if (hmd.configureTracking(ovrTrackingCap_Orientation | ovrTrackingCap_MagYawCorrection | ovrTrackingCap_Position, 0) == 0) {  //
+        if (hmd.configureTracking(ovrTrackingCap_Orientation | ovrTrackingCap_Position, 0) == 0) {  //ovrTrackingCap_MagYawCorrection
             throw new IllegalStateException("Unable to start the sensor");
         }
         
@@ -289,7 +298,7 @@ public class RiftClient implements KeyListener {
         //step 6 - player params
         System.out.println("step 6 - player params");
         ipd = hmd.getFloat(OvrLibrary.OVR_KEY_IPD, ipd);
-        eyeHeight = hmd.getFloat(OvrLibrary.OVR_KEY_EYE_HEIGHT, ipd);
+        eyeHeight = hmd.getFloat(OvrLibrary.OVR_KEY_EYE_HEIGHT, eyeHeight);
         recenterView();
         System.out.println("eyeheight="+eyeHeight);
         System.out.println("ipd="+ipd);
@@ -372,6 +381,7 @@ public class RiftClient implements KeyListener {
     static boolean hswDone = false;
     public void keyReleased(KeyEvent e) {
         System.out.println("hmd.getHSWDisplayState().Displayed="+hmd.getHSWDisplayState().Displayed);
+    
         if (!hswDone && hmd.getHSWDisplayState().Displayed == 1) {
             hmd.dismissHSWDisplay();
             hswDone = true;
