@@ -1,67 +1,59 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.sunshineapps</groupId>
-  <artifactId>example-jovr-jogl-rift</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
-  <packaging>jar</packaging>
+	<groupId>com.sunshineapps</groupId>
+	<artifactId>example-jovr-jogl-rift</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>jar</packaging>
 
-  <name>example-jovr-jogl-rift</name>
-  <url>http://maven.apache.org</url>
+	<name>example-jovr-jogl-rift</name>
+	<url>http://maven.apache.org</url>
 
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-  </properties>
-    <dependencies>
-  <!-- 
-  	
-     <dependency>
-     <groupId>org.jogamp.gluegen</groupId>
-     <artifactId>gluegen-rt-main</artifactId>
-     <version>2.0.2</version>
-   </dependency>
-   <dependency>
-     <groupId>org.jogamp.jogl</groupId>
-     <artifactId>jogl-all-main</artifactId>
-     <version>2.0.2</version>
-   </dependency>
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+	<dependencies>
+
+		<dependency>
+			<groupId>org.jogamp.gluegen</groupId>
+			<artifactId>gluegen-rt-main</artifactId>
+			<version>2.2.4</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jogamp.jogl</groupId>
+			<artifactId>jogl-all-main</artifactId>
+			<version>2.2.4</version>
+		</dependency>
 
 
-   
-   <dependency>
-    <groupId>org.saintandreas</groupId>
-    <artifactId>jovr</artifactId>
-    <version>0.4.1.2-SNAPSHOT</version>
-  </dependency>
--->   
-    <dependency>
-  <groupId>org.saintandreas</groupId>
-  <artifactId>jovr</artifactId>
-  <version>0.4.3.1-SNAPSHOT</version>
-</dependency>
+		<dependency>
+			<groupId>org.saintandreas</groupId>
+			<artifactId>jovr</artifactId>
+			<version>0.4.3.0</version>
+		</dependency>
 
-<dependency>
-    <groupId>com.google.guava</groupId>
-    <artifactId>guava</artifactId>
-    <version>18.0</version>
-</dependency>
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>18.0</version>
+		</dependency>
 
-  <dependency>
-    <groupId>org.saintandreas</groupId>
-    <artifactId>math</artifactId>
-    <version>1.0.4</version>
-  </dependency>
-  <dependency>
-    <groupId>org.saintandreas</groupId>
-    <artifactId>glamour-lwjgl</artifactId>
-    <version>2.0.2</version>
-  </dependency>
-  <dependency>
-    <groupId>net.java.dev.jna</groupId>
-    <artifactId>jna</artifactId>
-    <version>4.1.0</version>
-  </dependency>	
-	
-  </dependencies>
+		<dependency>
+			<groupId>org.saintandreas</groupId>
+			<artifactId>math</artifactId>
+			<version>1.0.4</version>
+		</dependency>
+		<dependency>
+			<groupId>org.saintandreas</groupId>
+			<artifactId>glamour-lwjgl</artifactId>
+			<version>2.0.2</version>
+		</dependency>
+		<dependency>
+			<groupId>net.java.dev.jna</groupId>
+			<artifactId>jna</artifactId>
+			<version>4.1.0</version>
+		</dependency>
+
+	</dependencies>
 </project>
