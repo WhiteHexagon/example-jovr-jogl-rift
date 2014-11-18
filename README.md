@@ -3,6 +3,8 @@ example-jovr-jogl-rift
 
 A simple example using JOGL, JOVR and Oculus Rift DK2
 
+Currently Targeting OpenGL 2.1
+
 Work in progress - trying to fix ModelView Matrix problems and OSX issues.
 
 Other non maven dependencies:
