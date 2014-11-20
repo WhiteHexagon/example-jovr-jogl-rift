@@ -60,7 +60,7 @@ import com.sunshineapps.riftexample.thirdparty.RiftUtils;
 
 public class RiftClient0430 implements KeyListener {
     private final AtomicBoolean shutdownRunning = new AtomicBoolean(false);
-
+    
     // JOGL
     private Animator animator;
     private GLWindow glWindow;
@@ -84,12 +84,14 @@ public class RiftClient0430 implements KeyListener {
     private final class DK2EventListener implements GLEventListener {
         private FrameBuffer leftEye;
         private FrameBuffer rightEye;
-        private final FloatBuffer projectionDFB[] = new FloatBuffer[2];
-        private final FloatBuffer modelviewDFB =  GLBuffers.newDirectFloatBuffer(4*4);
+        private final FloatBuffer projectionDFB[];
+        private final FloatBuffer modelviewDFB;
         private FixedTexture cheq;
 
         public DK2EventListener() {
             System.out.println("DK2EventListener()");
+            modelviewDFB =  GLBuffers.newDirectFloatBuffer(4*4);
+            projectionDFB = new FloatBuffer[2];
             for (int eye = 0; eye < 2; ++eye) {
                 projectionDFB[eye] = GLBuffers.newDirectFloatBuffer(4*4);
             }
@@ -283,10 +285,7 @@ public class RiftClient0430 implements KeyListener {
         System.out.println("right= " + recommendedTex1Size.w + "x" + recommendedTex1Size.h);
         int displayW = recommendedTex0Size.w + recommendedTex1Size.w;
         int displayH = Math.max(recommendedTex0Size.h, recommendedTex1Size.h);
-        OvrSizei renderTargetEyeSize = new OvrSizei(displayW / 2, displayH); // size
-                                                                             // of
-                                                                             // single
-                                                                             // eye
+        OvrSizei renderTargetEyeSize = new OvrSizei(displayW / 2, displayH);    //single eye
         System.out.println("using eye size " + renderTargetEyeSize.w + "x" + renderTargetEyeSize.h);
 
         eyeRenderViewport[0].Pos = new OvrVector2i(0, 0);

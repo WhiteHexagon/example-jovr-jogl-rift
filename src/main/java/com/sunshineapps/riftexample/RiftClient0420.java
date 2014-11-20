@@ -39,6 +39,7 @@ import com.jogamp.newt.event.KeyEvent;
 import com.jogamp.newt.event.KeyListener;
 import com.jogamp.newt.opengl.GLWindow;
 import com.jogamp.opengl.util.Animator;
+import com.jogamp.opengl.util.GLBuffers;
 import com.oculusvr.capi.EyeRenderDesc;
 import com.oculusvr.capi.FovPort;
 import com.oculusvr.capi.Hmd;
@@ -69,7 +70,7 @@ public class RiftClient0420 implements KeyListener {
     
     private EyeRenderDesc eyeRenderDescs[];
    
-    private int frameCount;
+    private int frameCount = -1;
     private final OvrRecti[] eyeRenderViewport = (OvrRecti[]) new OvrRecti().toArray(2);
     private final Posef poses[] = (Posef[]) new Posef().toArray(2);
     private final Texture eyeTextures[] = (Texture[]) new Texture().toArray(2);
@@ -85,12 +86,18 @@ public class RiftClient0420 implements KeyListener {
     private final class DK2EventListener implements GLEventListener {
         private FrameBuffer leftEye;
         private FrameBuffer rightEye;
-        private final FloatBuffer projectionDFB[] = new FloatBuffer[2];
-        private final FloatBuffer modelviewDFB = ByteBuffer.allocateDirect(16*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+        private final FloatBuffer projectionDFB[];
+        private final FloatBuffer modelviewDFB;
         private FixedTexture cheq;
-        
-        float rotate;
 
+        public DK2EventListener() {
+            System.out.println("DK2EventListener()");
+            modelviewDFB =  GLBuffers.newDirectFloatBuffer(4*4);
+            projectionDFB = new FloatBuffer[2];
+            for (int eye = 0; eye < 2; ++eye) {
+                projectionDFB[eye] = GLBuffers.newDirectFloatBuffer(4*4);
+            }
+        }
 
         public void init(GLAutoDrawable drawable) {
             final GL2 gl = drawable.getGL().getGL2();
@@ -167,14 +174,9 @@ public class RiftClient0420 implements KeyListener {
                 MatrixStack mv = MatrixStack.MODELVIEW;
                 mv.push();
                 {
-              //      mv.preTranslate(RiftUtils.toVector3f(poses[eye].Position).mult(-1));
-              //      mv.preRotate(RiftUtils.toQuaternion(poses[eye].Orientation).inverse());
+                    mv.preTranslate(RiftUtils.toVector3f(poses[eye].Position).mult(-1));
+                    mv.preRotate(RiftUtils.toQuaternion(poses[eye].Orientation).inverse());
                     
-                    mv.preRotate(rotate, new Vector3f(0.0f, 1.0f, 0.0f));
-                    
-
-     rotate+=.001f;
-                
                     mv.preTranslate(RiftUtils.toVector3f(eyeRenderDescs[eye].ViewAdjust));
                     mv.translate(new Vector3f(0, eyeHeight, 0 ));
                     modelviewDFB.clear();
@@ -207,7 +209,7 @@ public class RiftClient0420 implements KeyListener {
             for (int eye = 0; eye < 2; ++eye) {
                 MatrixStack.PROJECTION.set(projections[eye]);
                 gl.glMatrixMode(GL2.GL_PROJECTION);
-                projectionDFB[eye] = ByteBuffer.allocateDirect(16*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                
                 MatrixStack.PROJECTION.top().fillFloatBuffer(projectionDFB[eye], true);
                 projectionDFB[eye].rewind();
                 gl.glLoadMatrixf(projectionDFB[eye]);            
@@ -254,9 +256,6 @@ public class RiftClient0420 implements KeyListener {
     }
     
     public void run() {
-        System.out.println("Startup");
-        frameCount = -1;
-        
         //step 1 - hmd init
         System.out.println("step 1 - hmd init");
         Hmd.initialize();
@@ -318,8 +317,7 @@ public class RiftClient0420 implements KeyListener {
         ipd = hmd.getFloat(OvrLibrary.OVR_KEY_IPD, ipd);
         eyeHeight = hmd.getFloat(OvrLibrary.OVR_KEY_EYE_HEIGHT, eyeHeight);
         recenterView();
-        System.out.println("eyeheight="+eyeHeight);
-        System.out.println("ipd="+ipd);
+        System.out.println("eyeheight="+eyeHeight+" ipd="+ipd);
  
         //step 7 - opengl window
         System.out.println("step 7 - window");
