@@ -4,10 +4,8 @@ import java.nio.ByteBuffer;
 
 import javax.media.opengl.GL2;
 
-import jglm.Vec2i;
-import jglm.Vec4;
-
 import com.jogamp.opengl.util.GLBuffers;
+
 
 /**
  *

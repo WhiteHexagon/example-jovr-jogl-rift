@@ -39,6 +39,7 @@ import com.jogamp.newt.event.KeyEvent;
 import com.jogamp.newt.event.KeyListener;
 import com.jogamp.newt.opengl.GLWindow;
 import com.jogamp.opengl.util.Animator;
+import com.jogamp.opengl.util.GLBuffers;
 import com.oculusvr.capi.EyeRenderDesc;
 import com.oculusvr.capi.FovPort;
 import com.oculusvr.capi.Hmd;
@@ -59,15 +60,15 @@ import com.sunshineapps.riftexample.thirdparty.RiftUtils;
 
 public class RiftClient0430 implements KeyListener {
     private final AtomicBoolean shutdownRunning = new AtomicBoolean(false);
-    
-    //JOGL
+
+    // JOGL
     private Animator animator;
     private GLWindow glWindow;
-   
-    //Rift Specific
+
+    // Rift Specific
     private Hmd hmd;
-    private int frameCount;
-    private final OvrVector3f eyeOffsets[] = (OvrVector3f[])new OvrVector3f().toArray(2);
+    private int frameCount = -1;
+    private final OvrVector3f eyeOffsets[] = (OvrVector3f[]) new OvrVector3f().toArray(2);
     private final OvrRecti[] eyeRenderViewport = (OvrRecti[]) new OvrRecti().toArray(2);
     private final Posef poses[] = (Posef[]) new Posef().toArray(2);
     private final Texture eyeTextures[] = (Texture[]) new Texture().toArray(2);
@@ -76,27 +77,31 @@ public class RiftClient0430 implements KeyListener {
     private final int fboIds[] = new int[2];
     private float ipd = OvrLibrary.OVR_DEFAULT_IPD;
     private float eyeHeight = OvrLibrary.OVR_DEFAULT_EYE_HEIGHT;
-    
-    //Scene
+
+    // Scene
     private Matrix4f player;
-     
+
     private final class DK2EventListener implements GLEventListener {
         private FrameBuffer leftEye;
         private FrameBuffer rightEye;
         private final FloatBuffer projectionDFB[] = new FloatBuffer[2];
-        private final FloatBuffer modelviewDFB = ByteBuffer.allocateDirect(16*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+        private final FloatBuffer modelviewDFB =  GLBuffers.newDirectFloatBuffer(4*4);
         private FixedTexture cheq;
-        
-        float rotate;
 
+        public DK2EventListener() {
+            System.out.println("DK2EventListener()");
+            for (int eye = 0; eye < 2; ++eye) {
+                projectionDFB[eye] = GLBuffers.newDirectFloatBuffer(4*4);
+            }
+        }
 
         public void init(GLAutoDrawable drawable) {
             final GL2 gl = drawable.getGL().getGL2();
             gl.glClearColor(.42f, .67f, .87f, 1f);
 
-            //Lighting
+            // Lighting
             float[] lightPos = new float[4];
-            lightPos[0] =0.5f;
+            lightPos[0] = 0.5f;
             lightPos[1] = 0;
             lightPos[2] = 1f;
             lightPos[3] = 0.0001f;
@@ -123,20 +128,20 @@ public class RiftClient0430 implements KeyListener {
             int distortionCaps = ovrDistortionCap_Chromatic | ovrDistortionCap_TimeWarp | ovrDistortionCap_Vignette;
             EyeRenderDesc eyeRenderDescs[] = hmd.configureRendering(rc, distortionCaps, fovPorts);
             for (int eye = 0; eye < 2; ++eye) {
-            	eyeOffsets[eye].x = eyeRenderDescs[eye].HmdToEyeViewOffset.x;
-            	eyeOffsets[eye].y = eyeRenderDescs[eye].HmdToEyeViewOffset.y;
-            	eyeOffsets[eye].z = eyeRenderDescs[eye].HmdToEyeViewOffset.z;
+                eyeOffsets[eye].x = eyeRenderDescs[eye].HmdToEyeViewOffset.x;
+                eyeOffsets[eye].y = eyeRenderDescs[eye].HmdToEyeViewOffset.y;
+                eyeOffsets[eye].z = eyeRenderDescs[eye].HmdToEyeViewOffset.z;
             }
-            
+
             leftEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Left].Size);
             rightEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Right].Size);
             fboIds[ovrEyeType.ovrEye_Left] = leftEye.getId();
             fboIds[ovrEyeType.ovrEye_Right] = rightEye.getId();
-            
+
             eyeTextures[ovrEyeType.ovrEye_Left].TextureId = leftEye.getTextureId();
             eyeTextures[ovrEyeType.ovrEye_Right].TextureId = rightEye.getTextureId();
 
-            //scene prep
+            // scene prep
             gl.glEnable(GL2.GL_TEXTURE_2D);
             cheq = FixedTexture.createBuiltinTexture(gl, BuiltinTexture.tex_checker);
             gl.glDisable(GL2.GL_TEXTURE_2D);
@@ -148,10 +153,11 @@ public class RiftClient0430 implements KeyListener {
         }
 
         public void display(GLAutoDrawable drawable) {
+            // System.out.println("Display "+frameCount);
             hmd.beginFrameTiming(++frameCount);
             GL2 gl = drawable.getGL().getGL2();
             Posef eyePoses[] = hmd.getEyePoses(frameCount, eyeOffsets);
-            for (int eyeIndex = 0; eyeIndex < ovrEyeType.ovrEye_Count; eyeIndex++){
+            for (int eyeIndex = 0; eyeIndex < ovrEyeType.ovrEye_Count; eyeIndex++) {
                 int eye = hmd.EyeRenderOrder[eyeIndex];
                 Posef pose = eyePoses[eye];
                 poses[eye].Orientation = pose.Orientation;
@@ -162,24 +168,20 @@ public class RiftClient0430 implements KeyListener {
 
                 gl.glMatrixMode(GL2.GL_PROJECTION);
                 gl.glLoadMatrixf(projectionDFB[eye]);
-                
+
                 gl.glMatrixMode(GL2.GL_MODELVIEW);
                 MatrixStack mv = MatrixStack.MODELVIEW;
                 mv.push();
                 {
                     mv.preTranslate(RiftUtils.toVector3f(poses[eye].Position).mult(-1));
                     mv.preRotate(RiftUtils.toQuaternion(poses[eye].Orientation).inverse());
-                    
-                    mv.preRotate(rotate, new Vector3f(1.0f, 1.0f, 0.0f));
-                    rotate+=.001f;
-                
-                    mv.translate(new Vector3f(0, eyeHeight, 0 ));
+                    mv.translate(new Vector3f(0, eyeHeight, 0));
                     modelviewDFB.clear();
                     MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
                     modelviewDFB.rewind();
                     gl.glLoadMatrixf(modelviewDFB);
 
-                    //tiles on floor
+                    // tiles on floor
                     gl.glEnable(GL2.GL_TEXTURE_2D);
                     gl.glBindTexture(GL2.GL_TEXTURE_2D, cheq.getId());
                     gl.glTranslatef(0.0f, -eyeHeight, 0.0f);
@@ -192,101 +194,101 @@ public class RiftClient0430 implements KeyListener {
             gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
             gl.glDisable(GL2.GL_TEXTURE_2D);
-            
+
             hmd.endFrame(poses, eyeTextures);
         }
 
         public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
-            System.out.println("reshape loc "+x+","+y+" size "+width+"x"+height);
+            System.out.println("reshape loc " + x + "," + y + " size " + width + "x" + height);
             GL2 gl = drawable.getGL().getGL2();
-            
+
             gl.glMatrixMode(GL2.GL_PROJECTION);
             for (int eye = 0; eye < 2; ++eye) {
                 MatrixStack.PROJECTION.set(projections[eye]);
                 gl.glMatrixMode(GL2.GL_PROJECTION);
-                projectionDFB[eye] = ByteBuffer.allocateDirect(16*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
                 MatrixStack.PROJECTION.top().fillFloatBuffer(projectionDFB[eye], true);
                 projectionDFB[eye].rewind();
-                gl.glLoadMatrixf(projectionDFB[eye]);            
+                gl.glLoadMatrixf(projectionDFB[eye]);
             }
 
             gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
             gl.glLoadIdentity();
             recenterView();
             MatrixStack.MODELVIEW.set(player.invert());
-            
+
             modelviewDFB.clear();
             MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
             modelviewDFB.rewind();
             gl.glLoadMatrixf(modelviewDFB);
-            
+
         }
-    }   //end inner class
-    
+    } // end inner class
+
     private void recenterView() {
         Vector3f center = Vector3f.UNIT_Y.mult(eyeHeight);
-        //Vector3f eye = new Vector3f(0, eyeHeight, ipd * 10.0f);		//jherico
-        Vector3f eye = new Vector3f(ipd*5.0f, eyeHeight, 0.0f);
+        // Vector3f eye = new Vector3f(0, eyeHeight, ipd * 10.0f); //jherico
+        Vector3f eye = new Vector3f(ipd * 5.0f, eyeHeight, 0.0f);
         player = Matrix4f.lookat(eye, center, Vector3f.UNIT_Y).invert();
-        //worldToCamera = Matrix4f.lookat(eye, center, Vector3f.UNIT_Y);
+        // worldToCamera = Matrix4f.lookat(eye, center, Vector3f.UNIT_Y);
         hmd.recenterPose();
-        
-        
-        
     }
-    
-    public final void drawPlaneXZ(final GL2 gl){
+
+    public final void drawPlaneXZ(final GL2 gl) {
         gl.glTexEnvf(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_DECAL);
-        float[] normal = new float[] {1f, 0f, 1f};
+        float[] normal = new float[] { 1f, 0f, 1f };
         float roomSize = 4.0f;
-        float tileSize = 4.0f;      //if same then there are two tiles per square
+        float tileSize = 4.0f; // if same then there are two tiles per square
         gl.glBegin(GL2.GL_QUADS);
-          gl.glNormal3fv(normal, 0);
-          gl.glColor4f(1f, 1f, 1f, 1f);
-          gl.glTexCoord2f( 0f, 0f);                   gl.glVertex3f(-roomSize, 0f, -roomSize);
-          gl.glTexCoord2f( tileSize, 0f);             gl.glVertex3f( roomSize, 0f, -roomSize);
-          gl.glTexCoord2f( tileSize, tileSize);       gl.glVertex3f( roomSize, 0f, roomSize);
-          gl.glTexCoord2f( 0f, tileSize);             gl.glVertex3f(-roomSize, 0f, roomSize);
+        gl.glNormal3fv(normal, 0);
+        gl.glColor4f(1f, 1f, 1f, 1f);
+        gl.glTexCoord2f(0f, 0f);
+        gl.glVertex3f(-roomSize, 0f, -roomSize);
+        gl.glTexCoord2f(tileSize, 0f);
+        gl.glVertex3f(roomSize, 0f, -roomSize);
+        gl.glTexCoord2f(tileSize, tileSize);
+        gl.glVertex3f(roomSize, 0f, roomSize);
+        gl.glTexCoord2f(0f, tileSize);
+        gl.glVertex3f(-roomSize, 0f, roomSize);
         gl.glEnd();
     }
-    
+
     public void run() {
-        System.out.println("Startup");
-        frameCount = -1;
-        
-        //step 1 - hmd init
+        // step 1 - hmd init
         System.out.println("step 1 - hmd init");
         Hmd.initialize();
-		try {
-			Thread.sleep(400);
-		} catch (InterruptedException e) {
-			throw new IllegalStateException(e);
-		}
-        
-        //step 2 - hmd create
+        try {
+            Thread.sleep(400);
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
+        }
+
+        // step 2 - hmd create
         System.out.println("step 2 - hmd create");
-        hmd = Hmd.create(0);        //assume 1 device at index 0
+        hmd = Hmd.create(0); // assume 1 device at index 0
         if (hmd == null) {
             System.out.println("null hmd");
             hmd = Hmd.createDebug(OvrLibrary.ovrHmdType.ovrHmd_DK2);
             return;
         }
         hmd.enableHswDisplay(false);
-        
-        //step 3 - hmd size queries
+
+        // step 3 - hmd size queries
         System.out.println("step 3 - hmd sizes");
         OvrSizei resolution = hmd.Resolution;
-        System.out.println("resolution= "+resolution.w+"x"+resolution.h);
+        System.out.println("resolution= " + resolution.w + "x" + resolution.h);
 
         OvrSizei recommendedTex0Size = hmd.getFovTextureSize(OvrLibrary.ovrEyeType.ovrEye_Left, hmd.DefaultEyeFov[0], 1.0f);
         OvrSizei recommendedTex1Size = hmd.getFovTextureSize(OvrLibrary.ovrEyeType.ovrEye_Right, hmd.DefaultEyeFov[1], 1.0f);
-        System.out.println("left= "+recommendedTex0Size.w+"x"+recommendedTex0Size.h);
-        System.out.println("right= "+recommendedTex1Size.w+"x"+recommendedTex1Size.h);
+        System.out.println("left= " + recommendedTex0Size.w + "x" + recommendedTex0Size.h);
+        System.out.println("right= " + recommendedTex1Size.w + "x" + recommendedTex1Size.h);
         int displayW = recommendedTex0Size.w + recommendedTex1Size.w;
         int displayH = Math.max(recommendedTex0Size.h, recommendedTex1Size.h);
-        OvrSizei renderTargetEyeSize = new OvrSizei(displayW / 2, displayH);   //size of single eye
-        System.out.println("using eye size "+renderTargetEyeSize.w+"x"+renderTargetEyeSize.h);
-        
+        OvrSizei renderTargetEyeSize = new OvrSizei(displayW / 2, displayH); // size
+                                                                             // of
+                                                                             // single
+                                                                             // eye
+        System.out.println("using eye size " + renderTargetEyeSize.w + "x" + renderTargetEyeSize.h);
+
         eyeRenderViewport[0].Pos = new OvrVector2i(0, 0);
         eyeRenderViewport[0].Size = renderTargetEyeSize;
         eyeRenderViewport[1].Pos = eyeRenderViewport[0].Pos;
@@ -295,68 +297,66 @@ public class RiftClient0430 implements KeyListener {
         eyeTextures[0].Header = new TextureHeader(renderTargetEyeSize, eyeRenderViewport[0]);
         eyeTextures[1].Header = new TextureHeader(renderTargetEyeSize, eyeRenderViewport[1]);
 
-        //step 4 - tracking
+        // step 4 - tracking
         System.out.println("step 4 - tracking");
         if (hmd.configureTracking(ovrTrackingCap_Orientation | ovrTrackingCap_MagYawCorrection | ovrTrackingCap_Position, 0) == 0) {
             throw new IllegalStateException("Unable to start the sensor");
         }
-        
-        //step 5 - FOV
+
+        // step 5 - FOV
         System.out.println("step 5 - FOV");
         for (int eye = 0; eye < 2; ++eye) {
             fovPorts[eye] = hmd.DefaultEyeFov[eye];
-            projections[eye] = RiftUtils.toMatrix4f(
-                    Hmd.getPerspectiveProjection(
-                        fovPorts[eye], 0.1f, 1000000f, true));
+            projections[eye] = RiftUtils.toMatrix4f(Hmd.getPerspectiveProjection(fovPorts[eye], 0.1f, 1000000f, true));
         }
-        
-        //step 6 - player params
+
+        // step 6 - player params
         System.out.println("step 6 - player params");
         ipd = hmd.getFloat(OvrLibrary.OVR_KEY_IPD, ipd);
         eyeHeight = hmd.getFloat(OvrLibrary.OVR_KEY_EYE_HEIGHT, eyeHeight);
         recenterView();
-        System.out.println("eyeheight="+eyeHeight);
-        System.out.println("ipd="+ipd);
- 
-        //step 7 - opengl window
+        System.out.println("eyeheight=" + eyeHeight + " ipd=" + ipd);
+
+        // step 7 - opengl window
         System.out.println("step 7 - window");
-        final Display display = NewtFactory.createDisplay("tiny");             
-        final Screen screen  = NewtFactory.createScreen(display, 0);
-    	screen.addReference();
-    	final List<MonitorDevice> riftMonitor = new ArrayList<MonitorDevice>();
-    	for (MonitorDevice monitor : screen.getMonitorDevices()) {
-    		if (monitor.getViewport().getWidth() == resolution.w && monitor.getViewport().getHeight() == resolution.h) {
-    			riftMonitor.add(monitor);
-    			System.out.println("Found Rift Monitor");
-    			break;
-    		}
-    	}
-    	if (riftMonitor.size() != 1) {	//could be multiple?
-    		System.out.println("Cant find Rift for fullscreen mode - check resolution lookup");
-    		return;
-    	}
-        	
-      	GLProfile glProfile = GLProfile.get(GLProfile.GL2);
+        final Display display = NewtFactory.createDisplay("tiny");
+        final Screen screen = NewtFactory.createScreen(display, 0);
+        screen.addReference();
+        final List<MonitorDevice> riftMonitor = new ArrayList<MonitorDevice>();
+        for (MonitorDevice monitor : screen.getMonitorDevices()) {
+            if (monitor.getViewport().getWidth() == resolution.w && monitor.getViewport().getHeight() == resolution.h) {
+                riftMonitor.add(monitor);
+                System.out.println("Found Rift Monitor");
+                break;
+            }
+        }
+        if (riftMonitor.size() != 1) { // could be multiple?
+            System.out.println("Cant find Rift for fullscreen mode - check resolution lookup");
+            return;
+        }
+
+        GLProfile glProfile = GLProfile.get(GLProfile.GL2);
         System.out.println("got: " + glProfile.getImplName());
-        final Window window  = NewtFactory.createWindow(screen, new GLCapabilities(glProfile));
+        final Window window = NewtFactory.createWindow(screen, new GLCapabilities(glProfile));
         window.setSize(displayW, displayH);
         glWindow = GLWindow.create(window);
         glWindow.setAutoSwapBufferMode(false);
-        glWindow.setUndecorated(true);				//does not hit 75fps otherwise!
-        	glWindow.setFullscreen(riftMonitor);
-      //  glWindow.setFullscreen(true);		//only works on primary?
+        glWindow.setUndecorated(true); // does not hit 75fps otherwise!
+        glWindow.setFullscreen(riftMonitor);
+        // glWindow.setFullscreen(true); //only works on primary?
         glWindow.addKeyListener(this);
         glWindow.addGLEventListener(new DK2EventListener());
-        
+
         glWindow.setVisible(true);
-        NativeWindowFactoryImpl.addCustomShutdownHook(true, new Runnable(){
+        NativeWindowFactoryImpl.addCustomShutdownHook(true, new Runnable() {
             public void run() {
                 System.out.println("STOP");
                 animator.stop();
-            }});
-        
-        //step 8 - loop
-        System.out.println("step 8 - loop");
+            }
+        });
+
+        // step 8 - animator loop
+        System.out.println("step 8 - animator loop");
         animator = new Animator();
         animator.add(glWindow);
         animator.start();
@@ -388,35 +388,36 @@ public class RiftClient0430 implements KeyListener {
                 }
             } finally {
                 System.out.println("3");
-                //switch mon
+                // switch mon
             }
         }
     }
-    
-    
-// KEYBOARD =====================================
+
+    // KEYBOARD =====================================
     public void keyPressed(KeyEvent e) {
     }
 
     static boolean hswDone = false;
+
     public void keyReleased(KeyEvent e) {
-        System.out.println("hmd.getHSWDisplayState().Displayed="+hmd.getHSWDisplayState().Displayed);
-    
+        System.out.println("hmd.getHSWDisplayState().Displayed=" + hmd.getHSWDisplayState().Displayed);
+
         if (!hswDone && hmd.getHSWDisplayState().Displayed == 1) {
             hmd.dismissHSWDisplay();
             hswDone = true;
         }
-        
+
         if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
             shutdown();
         }
-        if(e.getKeyCode() == KeyEvent.VK_F5) {
+        if (e.getKeyCode() == KeyEvent.VK_F5) {
             new Thread() {
                 public void run() {
                     glWindow.setFullscreen(!glWindow.isFullscreen());
-            } }.start();
+                }
+            }.start();
         }
-        if(e.getKeyCode() == KeyEvent.VK_R) {
+        if (e.getKeyCode() == KeyEvent.VK_R) {
             recenterView();
         }
     }
@@ -424,5 +425,5 @@ public class RiftClient0430 implements KeyListener {
     public static void main(String[] args) throws IOException, InterruptedException {
         new RiftClient0430().run();
     }
-    
+
 }
