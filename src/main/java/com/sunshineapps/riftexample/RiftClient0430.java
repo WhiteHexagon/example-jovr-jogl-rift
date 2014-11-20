@@ -3,13 +3,11 @@ package com.sunshineapps.riftexample;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Chromatic;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_TimeWarp;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Vignette;
+import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_MagYawCorrection;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Orientation;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Position;
-import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_MagYawCorrection;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,10 +24,10 @@ import javax.media.opengl.fixedfunc.GLMatrixFunc;
 import jogamp.nativewindow.NativeWindowFactoryImpl;
 
 import org.saintandreas.gl.MatrixStack;
-import org.saintandreas.math.Matrix3f;
 import org.saintandreas.math.Matrix4f;
 import org.saintandreas.math.Vector3f;
 
+import com.jogamp.common.nio.Buffers;
 import com.jogamp.newt.Display;
 import com.jogamp.newt.MonitorDevice;
 import com.jogamp.newt.NewtFactory;
@@ -39,7 +37,6 @@ import com.jogamp.newt.event.KeyEvent;
 import com.jogamp.newt.event.KeyListener;
 import com.jogamp.newt.opengl.GLWindow;
 import com.jogamp.opengl.util.Animator;
-import com.jogamp.opengl.util.GLBuffers;
 import com.oculusvr.capi.EyeRenderDesc;
 import com.oculusvr.capi.FovPort;
 import com.oculusvr.capi.Hmd;
@@ -90,10 +87,10 @@ public class RiftClient0430 implements KeyListener {
 
         public DK2EventListener() {
             System.out.println("DK2EventListener()");
-            modelviewDFB =  GLBuffers.newDirectFloatBuffer(4*4);
+            modelviewDFB =  Buffers.newDirectFloatBuffer(4*4);
             projectionDFB = new FloatBuffer[2];
             for (int eye = 0; eye < 2; ++eye) {
-                projectionDFB[eye] = GLBuffers.newDirectFloatBuffer(4*4);
+                projectionDFB[eye] = Buffers.newDirectFloatBuffer(4*4);
             }
         }
 
