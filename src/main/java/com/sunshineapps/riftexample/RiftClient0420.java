@@ -56,6 +56,7 @@ import com.sunshineapps.riftexample.thirdparty.RiftUtils;
 
 public class RiftClient0420 implements KeyListener {
     private final AtomicBoolean shutdownRunning = new AtomicBoolean(false);
+    private final boolean useDebugHMD = true;
     
     //JOGL
     private Animator animator;
@@ -267,7 +268,9 @@ public class RiftClient0420 implements KeyListener {
         if (hmd == null) {
             System.out.println("null hmd");
             hmd = Hmd.createDebug(OvrLibrary.ovrHmdType.ovrHmd_DK2);
-            return;
+            if (!useDebugHMD) {
+                return;
+            }
         }
         hmd.enableHswDisplay(false);
         
@@ -330,7 +333,11 @@ public class RiftClient0420 implements KeyListener {
     	}
     	if (riftMonitor.size() != 1) {	//could be multiple?
     		System.out.println("Cant find Rift for fullscreen mode - check resolution lookup");
-    		return;
+    		if (useDebugHMD) {
+    		    riftMonitor.add(screen.getMonitorDevices().get(0));
+    		} else {
+    		    return;
+    		}
     	}
         
         GLProfile glProfile = GLProfile.get(GLProfile.GL2);
