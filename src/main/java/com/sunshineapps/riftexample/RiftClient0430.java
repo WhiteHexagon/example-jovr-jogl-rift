@@ -351,12 +351,12 @@ public class RiftClient0430 implements KeyListener {
         glWindow.addGLEventListener(new DK2EventListener());
 
         glWindow.setVisible(true);
-        NativeWindowFactoryImpl.addCustomShutdownHook(true, new Runnable() {
-            public void run() {
-                System.out.println("STOP");
-                animator.stop();
-            }
-        });
+//        NativeWindowFactoryImpl.addCustomShutdownHook(true, new Runnable() {
+//            public void run() {
+//                System.out.println("STOP");
+//                shutdown();
+//            }
+//        });
 
         // step 8 - animator loop
         System.out.println("step 8 - animator loop");
