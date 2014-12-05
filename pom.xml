@@ -26,11 +26,10 @@
 			<version>2.2.4</version>
 		</dependency>
 
-
 		<dependency>
 			<groupId>org.saintandreas</groupId>
 			<artifactId>jovr</artifactId>
-			<version>0.4.3.0</version>
+			<version>0.4.4.0</version>
 		</dependency>
 
 		<dependency>
