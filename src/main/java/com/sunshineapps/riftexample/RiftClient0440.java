@@ -413,11 +413,11 @@ public class RiftClient0440 implements KeyListener {
             shutdown();
         }
         if (e.getKeyCode() == KeyEvent.VK_F5) {
-            new Thread() {
-                public void run() {
-                    glWindow.setFullscreen(!glWindow.isFullscreen());
-                }
-            }.start();
+//            new Thread() {
+//                public void run() {
+//                    glWindow.setFullscreen(!glWindow.isFullscreen());
+//                }
+//            }.start();
         }
         if (e.getKeyCode() == KeyEvent.VK_R) {
             recenterView();
