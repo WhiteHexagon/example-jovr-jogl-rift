@@ -11,7 +11,11 @@ import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.media.opengl.GL2;
 import javax.media.opengl.GLAutoDrawable;
@@ -77,6 +81,21 @@ public class RiftClient0440 implements KeyListener {
 
     // Scene
     private Matrix4f player;
+    
+    //FPS
+    private final int fpsReportingPeriodSeconds = 5;
+    private final ScheduledExecutorService fpsCounter = Executors.newSingleThreadScheduledExecutor();
+    private final AtomicInteger frames = new AtomicInteger(0);
+    private final AtomicInteger fps = new AtomicInteger(0);
+    Runnable fpsJob = new Runnable() {
+        public void run() {
+            int frameCount;
+            
+            frameCount = frames.getAndSet(0);
+            fps.set(frameCount/fpsReportingPeriodSeconds);
+            System.out.println(frameCount+" frames in "+fpsReportingPeriodSeconds+"s. "+fps.get()+"fps");
+        }
+    };
 
     private final class DK2EventListener implements GLEventListener {
         private FrameBuffer leftEye;
@@ -145,6 +164,10 @@ public class RiftClient0440 implements KeyListener {
             cheq = FixedTexture.createBuiltinTexture(gl, BuiltinTexture.tex_checker);
             gl.glDisable(GL2.GL_TEXTURE_2D);
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
+            
+            //fps
+            fpsCounter.scheduleAtFixedRate(fpsJob, 0, fpsReportingPeriodSeconds, TimeUnit.SECONDS); 
+
         }
 
         public void dispose(GLAutoDrawable drawable) {
@@ -194,6 +217,7 @@ public class RiftClient0440 implements KeyListener {
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
             gl.glDisable(GL2.GL_TEXTURE_2D);
 
+            frames.incrementAndGet();
             hmd.endFrame(poses, eyeTextures);
         }
 
@@ -252,6 +276,7 @@ public class RiftClient0440 implements KeyListener {
     }
 
     public void run() {
+    	System.out.println(""+System.getProperty("java.version"));
         // step 1 - hmd init
         System.out.println("step 1 - hmd init");
         Hmd.initialize();
@@ -271,7 +296,6 @@ public class RiftClient0440 implements KeyListener {
                 return;
             }
         }
-        hmd.enableHswDisplay(false);
 
         // step 3 - hmd size queries
         System.out.println("step 3 - hmd sizes");
