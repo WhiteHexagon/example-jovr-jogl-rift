@@ -3,11 +3,13 @@ package com.sunshineapps.riftexample;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Chromatic;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_TimeWarp;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Vignette;
+import static com.oculusvr.capi.OvrLibrary.ovrEyeType.ovrEye_Count;
+import static com.oculusvr.capi.OvrLibrary.ovrEyeType.ovrEye_Left;
+import static com.oculusvr.capi.OvrLibrary.ovrEyeType.ovrEye_Right;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_MagYawCorrection;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Orientation;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Position;
 
-import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +27,6 @@ import javax.media.opengl.GLProfile;
 import javax.media.opengl.fixedfunc.GLLightingFunc;
 import javax.media.opengl.fixedfunc.GLMatrixFunc;
 
-import org.saintandreas.gl.MatrixStack;
 import org.saintandreas.math.Matrix4f;
 import org.saintandreas.math.Vector3f;
 
@@ -45,7 +46,6 @@ import com.oculusvr.capi.GLTexture;
 import com.oculusvr.capi.GLTextureData;
 import com.oculusvr.capi.Hmd;
 import com.oculusvr.capi.OvrLibrary;
-import com.oculusvr.capi.OvrLibrary.ovrEyeType;
 import com.oculusvr.capi.OvrRecti;
 import com.oculusvr.capi.OvrSizei;
 import com.oculusvr.capi.OvrVector2i;
@@ -56,9 +56,10 @@ import com.oculusvr.capi.TextureHeader;
 import com.sunshineapps.riftexample.thirdparty.FixedTexture;
 import com.sunshineapps.riftexample.thirdparty.FixedTexture.BuiltinTexture;
 import com.sunshineapps.riftexample.thirdparty.FrameBuffer;
+import com.sunshineapps.riftexample.thirdparty.MatrixStack;
 import com.sunshineapps.riftexample.thirdparty.RiftUtils;
 
-public class RiftClient0440 implements KeyListener {
+public final class RiftClient0440 implements KeyListener {
     private final AtomicBoolean shutdownRunning = new AtomicBoolean(false);
     private final boolean useDebugHMD = true;
     
@@ -75,7 +76,6 @@ public class RiftClient0440 implements KeyListener {
     private final GLTexture eyeTextures[] = (GLTexture[]) new GLTexture().toArray(2);
     private final FovPort fovPorts[] = (FovPort[]) new FovPort().toArray(2);
     private final Matrix4f projections[] = new Matrix4f[2];
-    private final int fboIds[] = new int[2];
     private float ipd = OvrLibrary.OVR_DEFAULT_IPD;
     private float eyeHeight = OvrLibrary.OVR_DEFAULT_EYE_HEIGHT;
 
@@ -89,19 +89,17 @@ public class RiftClient0440 implements KeyListener {
     private final AtomicInteger fps = new AtomicInteger(0);
     Runnable fpsJob = new Runnable() {
         public void run() {
-            int frameCount;
-            
-            frameCount = frames.getAndSet(0);
+            int frameCount = frames.getAndSet(0);
             fps.set(frameCount/fpsReportingPeriodSeconds);
+            frames.addAndGet(frameCount-(fps.get()*fpsReportingPeriodSeconds));
             System.out.println(frameCount+" frames in "+fpsReportingPeriodSeconds+"s. "+fps.get()+"fps");
         }
     };
 
     private final class DK2EventListener implements GLEventListener {
-        private FrameBuffer leftEye;
-        private FrameBuffer rightEye;
         private final FloatBuffer projectionDFB[];
         private final FloatBuffer modelviewDFB;
+        private FrameBuffer eyeDFB[];        
         private FixedTexture cheq;
 
         public DK2EventListener() {
@@ -118,17 +116,13 @@ public class RiftClient0440 implements KeyListener {
             gl.glClearColor(.42f, .67f, .87f, 1f);
 
             // Lighting
-            float[] lightPos = new float[4];
-            lightPos[0] = 0.5f;
-            lightPos[1] = 0;
-            lightPos[2] = 1f;
-            lightPos[3] = 0.0001f;
             gl.glEnable(GLLightingFunc.GL_LIGHTING);
             gl.glEnable(GLLightingFunc.GL_LIGHT0);
             gl.glEnable(GL2.GL_COLOR_MATERIAL);
             float[] noAmbient = { 0.2f, 0.2f, 0.2f, 1f };
             float[] spec = { 1f, 1f, 1f, 1f };
             float[] diffuse = { 1f, 1f, 1f, 1f };
+            float[] lightPos = { 0.5f, 0.0f, 1.0f, 0.0001f};
             gl.glLightfv(GLLightingFunc.GL_LIGHT0, GLLightingFunc.GL_AMBIENT, noAmbient, 0);
             gl.glLightfv(GLLightingFunc.GL_LIGHT0, GLLightingFunc.GL_SPECULAR, spec, 0);
             gl.glLightfv(GLLightingFunc.GL_LIGHT0, GLLightingFunc.GL_DIFFUSE, diffuse, 0);
@@ -151,13 +145,12 @@ public class RiftClient0440 implements KeyListener {
                 eyeOffsets[eye].z = eyeRenderDescs[eye].HmdToEyeViewOffset.z;
             }
 
-            leftEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Left].Size);
-            rightEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Right].Size);
-            fboIds[ovrEyeType.ovrEye_Left] = leftEye.getId();
-            fboIds[ovrEyeType.ovrEye_Right] = rightEye.getId();
+            eyeDFB = new FrameBuffer[2];
+            eyeDFB[ovrEye_Left] = new FrameBuffer(gl, eyeRenderViewport[ovrEye_Left].Size);
+            eyeDFB[ovrEye_Right] = new FrameBuffer(gl, eyeRenderViewport[ovrEye_Right].Size);
 
-            eyeTextures[ovrEyeType.ovrEye_Left].ogl.TexId = leftEye.getTextureId();
-            eyeTextures[ovrEyeType.ovrEye_Right].ogl.TexId = rightEye.getTextureId();
+            eyeTextures[ovrEye_Left].ogl.TexId = eyeDFB[ovrEye_Left].getTextureId();
+            eyeTextures[ovrEye_Right].ogl.TexId = eyeDFB[ovrEye_Right].getTextureId();
 
             // scene prep
             gl.glEnable(GL2.GL_TEXTURE_2D);
@@ -165,9 +158,28 @@ public class RiftClient0440 implements KeyListener {
             gl.glDisable(GL2.GL_TEXTURE_2D);
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
             
+            // initial matrix stuff
+            gl.glMatrixMode(GL2.GL_PROJECTION);
+            for (int eye = 0; eye < 2; ++eye) {
+                MatrixStack.PROJECTION.set(projections[eye]);
+                gl.glMatrixMode(GL2.GL_PROJECTION);
+                MatrixStack.PROJECTION.top().fillFloatBuffer(projectionDFB[eye], true);
+                projectionDFB[eye].rewind();
+                gl.glLoadMatrixf(projectionDFB[eye]);
+            }
+
+            gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
+            gl.glLoadIdentity();
+            recenterView();
+            MatrixStack.MODELVIEW.set(player.invert());
+
+            modelviewDFB.clear();
+            MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
+            modelviewDFB.rewind();
+            gl.glLoadMatrixf(modelviewDFB);
+            
             //fps
             fpsCounter.scheduleAtFixedRate(fpsJob, 0, fpsReportingPeriodSeconds, TimeUnit.SECONDS); 
-
         }
 
         public void dispose(GLAutoDrawable drawable) {
@@ -179,13 +191,13 @@ public class RiftClient0440 implements KeyListener {
             hmd.beginFrameTiming(++frameCount);
             GL2 gl = drawable.getGL().getGL2();
             Posef eyePoses[] = hmd.getEyePoses(frameCount, eyeOffsets);
-            for (int eyeIndex = 0; eyeIndex < ovrEyeType.ovrEye_Count; eyeIndex++) {
+            for (int eyeIndex = 0; eyeIndex < ovrEye_Count; eyeIndex++) {
                 int eye = hmd.EyeRenderOrder[eyeIndex];
                 Posef pose = eyePoses[eye];
                 poses[eye].Orientation = pose.Orientation;
                 poses[eye].Position = pose.Position;
 
-                gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fboIds[eye]);
+                gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, eyeDFB[eye].getId());
                 gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
 
                 gl.glMatrixMode(GL2.GL_PROJECTION);
@@ -223,27 +235,6 @@ public class RiftClient0440 implements KeyListener {
 
         public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
             System.out.println("reshape loc " + x + "," + y + " size " + width + "x" + height);
-            GL2 gl = drawable.getGL().getGL2();
-
-            gl.glMatrixMode(GL2.GL_PROJECTION);
-            for (int eye = 0; eye < 2; ++eye) {
-                MatrixStack.PROJECTION.set(projections[eye]);
-                gl.glMatrixMode(GL2.GL_PROJECTION);
-                MatrixStack.PROJECTION.top().fillFloatBuffer(projectionDFB[eye], true);
-                projectionDFB[eye].rewind();
-                gl.glLoadMatrixf(projectionDFB[eye]);
-            }
-
-            gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
-            gl.glLoadIdentity();
-            recenterView();
-            MatrixStack.MODELVIEW.set(player.invert());
-
-            modelviewDFB.clear();
-            MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
-            modelviewDFB.rewind();
-            gl.glLoadMatrixf(modelviewDFB);
-
         }
     } // end inner class
 
@@ -262,16 +253,16 @@ public class RiftClient0440 implements KeyListener {
         float roomSize = 4.0f;
         float tileSize = 4.0f; // if same then there are two tiles per square
         gl.glBegin(GL2.GL_QUADS);
-        gl.glNormal3fv(normal, 0);
-        gl.glColor4f(1f, 1f, 1f, 1f);
-        gl.glTexCoord2f(0f, 0f);
-        gl.glVertex3f(-roomSize, 0f, -roomSize);
-        gl.glTexCoord2f(tileSize, 0f);
-        gl.glVertex3f(roomSize, 0f, -roomSize);
-        gl.glTexCoord2f(tileSize, tileSize);
-        gl.glVertex3f(roomSize, 0f, roomSize);
-        gl.glTexCoord2f(0f, tileSize);
-        gl.glVertex3f(-roomSize, 0f, roomSize);
+            gl.glNormal3fv(normal, 0);
+            gl.glColor4f(1f, 1f, 1f, 1f);
+            gl.glTexCoord2f(0f, 0f);
+            gl.glVertex3f(-roomSize, 0f, -roomSize);
+            gl.glTexCoord2f(tileSize, 0f);
+            gl.glVertex3f(roomSize, 0f, -roomSize);
+            gl.glTexCoord2f(tileSize, tileSize);
+            gl.glVertex3f(roomSize, 0f, roomSize);
+            gl.glTexCoord2f(0f, tileSize);
+            gl.glVertex3f(-roomSize, 0f, roomSize);
         gl.glEnd();
     }
 
@@ -448,7 +439,7 @@ public class RiftClient0440 implements KeyListener {
         }
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    public static void main(String[] args) {
         new RiftClient0440().run();
     }
 
