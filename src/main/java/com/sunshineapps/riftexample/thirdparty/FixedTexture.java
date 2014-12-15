@@ -15,18 +15,18 @@ public class FixedTexture {
 
     private int[] id;
     private Vec2i size;
-    private int internalFormat;
-    private int glFormat;
-    private int glType;
-    private ByteBuffer data;
+ //   private int internalFormat;
+ //   private int glFormat;
+  //  private int glType;
+  //  private ByteBuffer data;
 
     private FixedTexture(int[] id, Vec2i size, int internalFormat, int glFormat, int glType, ByteBuffer data) {
         this.id = id;
         this.size = size;
-        this.internalFormat = internalFormat;
-        this.glFormat = glFormat;
-        this.glType = glType;
-        this.data = data;
+     //   this.internalFormat = internalFormat;
+     //   this.glFormat = glFormat;
+    //    this.glType = glType;
+    //    this.data = data;
     }
 
     private static FixedTexture create(GL2 gl3, int format, Vec2i sizei, byte[] data) {
