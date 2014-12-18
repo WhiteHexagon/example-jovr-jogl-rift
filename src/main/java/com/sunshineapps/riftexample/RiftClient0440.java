@@ -172,7 +172,6 @@ public final class RiftClient0440 implements KeyListener {
             gl.glLoadIdentity();
             recenterView();
             MatrixStack.MODELVIEW.set(player.invert());
-
             modelviewDFB.clear();
             MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
             modelviewDFB.rewind();
@@ -249,10 +248,11 @@ public final class RiftClient0440 implements KeyListener {
 
     public final void drawPlaneXZ(final GL2 gl) {
         gl.glTexEnvf(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_DECAL);
-        float[] normal = new float[] { 1f, 0f, 1f };
+        float[] normal = new float[] { 0f, 1f, 0f };
         float roomSize = 4.0f;
         float tileSize = 4.0f; // if same then there are two tiles per square
         gl.glBegin(GL2.GL_QUADS);
+        {
             gl.glNormal3fv(normal, 0);
             gl.glColor4f(1f, 1f, 1f, 1f);
             gl.glTexCoord2f(0f, 0f);
@@ -263,6 +263,7 @@ public final class RiftClient0440 implements KeyListener {
             gl.glVertex3f(roomSize, 0f, roomSize);
             gl.glTexCoord2f(0f, tileSize);
             gl.glVertex3f(-roomSize, 0f, roomSize);
+        }
         gl.glEnd();
     }
 
@@ -320,7 +321,7 @@ public final class RiftClient0440 implements KeyListener {
         System.out.println("step 5 - FOV");
         for (int eye = 0; eye < 2; ++eye) {
             fovPorts[eye] = hmd.DefaultEyeFov[eye];
-            projections[eye] = RiftUtils.toMatrix4f(Hmd.getPerspectiveProjection(fovPorts[eye], 0.1f, 1000000f, true));
+            projections[eye] = RiftUtils.toMatrix4f(Hmd.getPerspectiveProjection(fovPorts[eye], 1.0f, 25000.0f, true));
         }
 
         // step 6 - player params
@@ -384,6 +385,7 @@ public final class RiftClient0440 implements KeyListener {
         if (shutdownRunning.compareAndSet(false, true)) {
             try {
                 System.out.println("doing SHUTDOWN");
+                fpsCounter.shutdown();
                 if (animator != null) {
                     System.out.println("animator.stop");
                     animator.stop();
