@@ -246,13 +246,13 @@ public final class RiftClient0440NoMatirx implements KeyListener {
             gl.glNormal3fv(normal, 0);
             gl.glColor4f(1f, 1f, 1f, 1f);
             gl.glTexCoord2f(0f, 0f);
-            gl.glVertex3f(-roomSize, 0f, -roomSize);
-            gl.glTexCoord2f(tileSize, 0f);
-            gl.glVertex3f(roomSize, 0f, -roomSize);
-            gl.glTexCoord2f(tileSize, tileSize);
-            gl.glVertex3f(roomSize, 0f, roomSize);
-            gl.glTexCoord2f(0f, tileSize);
             gl.glVertex3f(-roomSize, 0f, roomSize);
+            gl.glTexCoord2f(tileSize, 0f);
+            gl.glVertex3f(roomSize, 0f, roomSize);
+            gl.glTexCoord2f(tileSize, tileSize);
+            gl.glVertex3f(roomSize, 0f, -roomSize);
+            gl.glTexCoord2f(0f, tileSize);
+            gl.glVertex3f(-roomSize, 0f, -roomSize);
         }
         gl.glEnd();
     }

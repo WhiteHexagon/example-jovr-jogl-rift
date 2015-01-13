@@ -114,6 +114,9 @@ public final class RiftClient0440 implements KeyListener {
         public void init(GLAutoDrawable drawable) {
             final GL2 gl = drawable.getGL().getGL2();
             gl.glClearColor(.42f, .67f, .87f, 1f);
+            
+            gl.glEnable(GL2.GL_CULL_FACE);
+            gl.glFrontFace(GL2.GL_CCW);
 
             // Lighting
             gl.glEnable(GLLightingFunc.GL_LIGHTING);
@@ -256,13 +259,13 @@ public final class RiftClient0440 implements KeyListener {
             gl.glNormal3fv(normal, 0);
             gl.glColor4f(1f, 1f, 1f, 1f);
             gl.glTexCoord2f(0f, 0f);
-            gl.glVertex3f(-roomSize, 0f, -roomSize);
-            gl.glTexCoord2f(tileSize, 0f);
-            gl.glVertex3f(roomSize, 0f, -roomSize);
-            gl.glTexCoord2f(tileSize, tileSize);
-            gl.glVertex3f(roomSize, 0f, roomSize);
-            gl.glTexCoord2f(0f, tileSize);
             gl.glVertex3f(-roomSize, 0f, roomSize);
+            gl.glTexCoord2f(tileSize, 0f);
+            gl.glVertex3f(roomSize, 0f, roomSize);
+            gl.glTexCoord2f(tileSize, tileSize);
+            gl.glVertex3f(roomSize, 0f, -roomSize);
+            gl.glTexCoord2f(0f, tileSize);
+            gl.glVertex3f(-roomSize, 0f, -roomSize);
         }
         gl.glEnd();
     }
