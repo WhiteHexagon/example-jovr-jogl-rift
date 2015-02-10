@@ -1,4 +1,4 @@
-package com.sunshineapps.riftexample;
+package com.sunshineapps.riftexample.withmatrix;
 
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Chromatic;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_TimeWarp;
@@ -10,6 +10,7 @@ import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_MagYaw
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Orientation;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Position;
 
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -24,9 +25,11 @@ import javax.media.opengl.GLCapabilities;
 import javax.media.opengl.GLEventListener;
 import javax.media.opengl.GLProfile;
 import javax.media.opengl.fixedfunc.GLLightingFunc;
+import javax.media.opengl.fixedfunc.GLMatrixFunc;
 
 import org.saintandreas.math.Matrix4f;
 
+import com.jogamp.common.nio.Buffers;
 import com.jogamp.newt.Display;
 import com.jogamp.newt.MonitorDevice;
 import com.jogamp.newt.NewtFactory;
@@ -35,15 +38,16 @@ import com.jogamp.newt.Window;
 import com.jogamp.newt.event.KeyEvent;
 import com.jogamp.newt.event.KeyListener;
 import com.jogamp.newt.opengl.GLWindow;
+import com.jogamp.opengl.math.Quaternion;
 import com.jogamp.opengl.util.Animator;
-import com.jogamp.opengl.util.gl2.GLUT;
+import com.jogamp.opengl.util.PMVMatrix;
 import com.oculusvr.capi.EyeRenderDesc;
 import com.oculusvr.capi.FovPort;
 import com.oculusvr.capi.GLTexture;
 import com.oculusvr.capi.GLTextureData;
 import com.oculusvr.capi.Hmd;
 import com.oculusvr.capi.OvrLibrary;
-import com.oculusvr.capi.OvrQuaternionf;
+import com.oculusvr.capi.OvrMatrix4f;
 import com.oculusvr.capi.OvrRecti;
 import com.oculusvr.capi.OvrSizei;
 import com.oculusvr.capi.OvrVector2i;
@@ -54,9 +58,8 @@ import com.oculusvr.capi.TextureHeader;
 import com.sunshineapps.riftexample.thirdparty.FixedTexture;
 import com.sunshineapps.riftexample.thirdparty.FixedTexture.BuiltinTexture;
 import com.sunshineapps.riftexample.thirdparty.FrameBuffer;
-import com.sunshineapps.riftexample.thirdparty.RiftUtils;
 
-public final class RiftClient0440NoMatirx implements KeyListener {
+public final class RiftClient0440PVM implements KeyListener {
     private final AtomicBoolean shutdownRunning = new AtomicBoolean(false);
     private final boolean useDebugHMD = true;
     
@@ -76,6 +79,12 @@ public final class RiftClient0440NoMatirx implements KeyListener {
     private float ipd = OvrLibrary.OVR_DEFAULT_IPD;
     private float eyeHeight = OvrLibrary.OVR_DEFAULT_EYE_HEIGHT;
     
+    OvrMatrix4f[] rawProjections = new OvrMatrix4f[2];
+
+    // Scene
+  //  private Matrix4f player;
+    private PMVMatrix pmvMatrix;
+    
     //FPS
     private final int fpsReportingPeriodSeconds = 5;
     private final ScheduledExecutorService fpsCounter = Executors.newSingleThreadScheduledExecutor();
@@ -91,12 +100,19 @@ public final class RiftClient0440NoMatirx implements KeyListener {
     };
 
     private final class DK2EventListener implements GLEventListener {
+        private final FloatBuffer projectionDFB[];
+      //  private final FloatBuffer modelviewDFB;
         private FrameBuffer eyeDFB[];        
         private FixedTexture cheq;
         
-        float canvasRatio;
 
         public DK2EventListener() {
+            System.out.println("DK2EventListener()");
+//            modelviewDFB =  Buffers.newDirectFloatBuffer(4*4);
+            projectionDFB = new FloatBuffer[2];
+            for (int eye = 0; eye < 2; ++eye) {
+                projectionDFB[eye] = Buffers.newDirectFloatBuffer(4*4);
+            }
         }
 
         public void init(GLAutoDrawable drawable) {
@@ -142,9 +158,39 @@ public final class RiftClient0440NoMatirx implements KeyListener {
 
             // scene prep
             gl.glEnable(GL2.GL_TEXTURE_2D);
-            cheq = FixedTexture.createBuiltinTexture(gl, BuiltinTexture.tex_checker);
+            cheq = new FixedTexture(gl, BuiltinTexture.tex_checker);
             gl.glDisable(GL2.GL_TEXTURE_2D);
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
+            
+            
+            // matrices 
+            pmvMatrix = new PMVMatrix();
+
+            
+            // initial matrix stuff
+//            gl.glMatrixMode(GL2.GL_PROJECTION);
+//            for (int eye = 0; eye < 2; ++eye) {
+//                MatrixStack.PROJECTION.set(projections[eye]);
+//                gl.glMatrixMode(GL2.GL_PROJECTION);
+//                MatrixStack.PROJECTION.top().fillFloatBuffer(projectionDFB[eye], true);
+//                projectionDFB[eye].rewind();
+//                gl.glLoadMatrixf(projectionDFB[eye]);
+//            }
+//
+//            gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
+//            gl.glLoadIdentity();
+//            recenterView();
+//            MatrixStack.MODELVIEW.set(player.invert());
+//            modelviewDFB.clear();
+//            MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
+//            modelviewDFB.rewind();
+//            gl.glLoadMatrixf(modelviewDFB);
+//            pmvMatrix.glMatrixMode(GLMatrixFunc.GL_PROJECTION);
+//            pmvMatrix.glLoadIdentity();
+//            
+//            
+//            pmvMatrix.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
+//            pmvMatrix.glLoadIdentity();
             
             //fps
             fpsCounter.scheduleAtFixedRate(fpsJob, 0, fpsReportingPeriodSeconds, TimeUnit.SECONDS); 
@@ -169,55 +215,101 @@ public final class RiftClient0440NoMatirx implements KeyListener {
                 gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
 
                 //Projection
-                gl.glMatrixMode(GL2.GL_PROJECTION);
-                gl.glLoadIdentity();       
-                gl.glFrustum(-1.0f * canvasRatio, canvasRatio, -1.0f, 1.0f, 3f, 25000.0f);
-
-                //ModelView
-                gl.glMatrixMode(GL2.GL_MODELVIEW);
-                gl.glLoadIdentity();
-                gl.glPushMatrix();
-                
-                OvrQuaternionf q = poses[eye].Orientation;
-                double yaw;
-                double roll;
-                double pitch;
-                float test = q.x*q.y + q.z*q.w;
-                if (test > 0.499) { // singularity at north pole
-                    yaw = 2 * Math.atan2(q.x, q.w);
-                    roll = Math.PI/2;
-                    pitch = 0f;
-                } else  if (test < -0.499) { // singularity at south pole
-                    yaw = -2 * Math.atan2(q.x, q.w);
-                    roll = -Math.PI/2;
-                    pitch = 0;
-                } else {
-                    double sqx = q.x * q.x;
-                    double sqy = q.y * q.y;
-                    double sqz = q.z * q.z;
-                    yaw = Math.atan2(2*q.y*q.w-2*q.x*q.z, 1 - 2*sqy - 2*sqz);
-                    roll = Math.asin(2*test);
-                    pitch = Math.atan2(2*q.x*q.w-2*q.y*q.z, 1 - 2*sqx - 2*sqz);
+                int projection = 1;
+// this one works
+                if (projection == 1) {
+                    gl.glMatrixMode(GL2.GL_PROJECTION);
+                    gl.glLoadIdentity();       
+                    gl.glFrustum(-1.0f , 1.0f, -1.0f, 1.0f, 1f, 25000.0f);
+                } else if (projection == 2) {
+                    //works
+                    pmvMatrix.glMatrixMode(GLMatrixFunc.GL_PROJECTION);
+                    pmvMatrix.glLoadIdentity();
+                    pmvMatrix.glFrustumf(-1.0f , 1.0f, -1.0f, 1.0f, 1f, 25000.0f);
+                    gl.glMatrixMode(GL2.GL_PROJECTION);
+                    gl.glLoadIdentity();
+                    gl.glLoadMatrixf(pmvMatrix.glGetPMatrixf());
+                } else if (projection == 3) {
+//works now with change from .1 to 1 for near plane!                
+                    pmvMatrix.glMatrixMode(GLMatrixFunc.GL_PROJECTION);
+                    pmvMatrix.glLoadIdentity();
+                    pmvMatrix.glLoadMatrixf(Hmd.getPerspectiveProjection(fovPorts[eye], 1.0f, 25000.0f, true).M, 0);
+                    gl.glMatrixMode(GL2.GL_PROJECTION);
+                    gl.glLoadIdentity();
+                    gl.glLoadMatrixf(pmvMatrix.glGetPMatrixf());
                 }
-                gl.glRotatef((float)Math.toDegrees(-pitch), 1.0f, 0.0f, 0.0f);
-                gl.glRotatef((float)Math.toDegrees(-roll), 0.0f, 0.0f, 1.0f);
-                gl.glRotatef((float)Math.toDegrees(-yaw), 0.0f, 1.0f, 0.0f);
-
-                gl.glColor3f(1.0f, 0.0f, 0.0f);
-                new GLUT().glutWireSphere(160, 16, 16);
+                
+//                System.out.println("HMD----------");
+//                float[] data = Hmd.getPerspectiveProjection(fovPorts[eye], 0.1f, 1000000f, true).M;
+//                for (int i=0;i<16;i++) {
+//                    System.out.print(data[i]+"\t,");
+//                    if ((i+1)%4 == 0) {
+//                        System.out.println();
+//                    }
+//                }
+//                System.out.println("PMV----------");
+//                data = pmvMatrix.glGetPMatrixf().array();
+//                for (int i=0;i<16;i++) {
+//                    System.out.print(data[i]+"\t,");
+//                    if ((i+1)%4 == 0) {
+//                        System.out.println();
+//                    }
+//                }
+//                System.out.println("----------");
+                
+                //ModelView
+                pmvMatrix.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
+                pmvMatrix.glLoadIdentity();
+          //      pmvMatrix.glPushMatrix();
                 {
-                    gl.glTranslatef(-poses[eye].Position.x, -poses[eye].Position.y - eyeHeight, -poses[eye].Position.z);
+                    Quaternion q = new Quaternion(poses[eye].Orientation.x, poses[eye].Orientation.y, poses[eye].Orientation.z, poses[eye].Orientation.w);
+                    pmvMatrix.glRotate(q.invert());
+//                    pmvMatrix.glLoadMatrix(q.invert());
+                    pmvMatrix.glLoadMatrix(q);
+         //           try this also as mult against identity?
+                  
+                   //dose not work? 
+//                    FloatBuffer transFB = ByteBuffer.allocateDirect(4*4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+//                    transFB.put(new float[]{-poses[eye].Position.x, -poses[eye].Position.y - eyeHeight, -poses[eye].Position.z});
+//                    transFB.rewind();
+//                    pmvMatrix.glMultMatrixf(transFB);
+
+                 //   pmvMatrix.glTranslatef(-poses[eye].Position.x, -poses[eye].Position.y - eyeHeight, -poses[eye].Position.z);
+                    gl.glMatrixMode(GL2.GL_MODELVIEW);
+                    gl.glLoadIdentity();
+                    gl.glLoadMatrixf(pmvMatrix.glGetMvMatrixf());
                     
+                    
+//                  System.out.println("PMV----------");
+//                  float[] data = pmvMatrix.glGetMvMatrixf().array();
+//                  for (int i=0;i<16;i++) {
+//                      System.out.print(data[i]+"\t,");
+//                      if ((i+1)%4 == 0) {
+//                          System.out.println();
+//                      }
+//                  }
+//                  System.out.println("----------");
+                    
+                }
+                
+                //scene
+                {
                     // tiles on floor
                     gl.glEnable(GL2.GL_TEXTURE_2D);
                     gl.glBindTexture(GL2.GL_TEXTURE_2D, cheq.getId());
-                    gl.glTranslatef(0.0f, -eyeHeight, 0.0f);
+                //    pmvMatrix.glTranslatef(0.0f, -eyeHeight, 0.0f);
+               //     gl.glLoadMatrixf(pmvMatrix.glGetMvMatrixf());
+                    
                     drawPlaneXZ(gl);
-                    gl.glTranslatef(0.0f, eyeHeight, 0.0f);
+                //    pmvMatrix.glTranslatef(0.0f, eyeHeight, 0.0f);
+                 //   gl.glLoadMatrixf(pmvMatrix.glGetMvMatrixf());
                     gl.glDisable(GL2.GL_TEXTURE_2D);
                 }
-                gl.glPopMatrix();
+           //     pmvMatrix.glPopMatrix();
+              //  gl.glLoadMatrixf(pmvMatrix.glGetMvMatrixf());
+            
             }
+       //     System.exit(1);
             gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, 0);
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
             gl.glDisable(GL2.GL_TEXTURE_2D);
@@ -228,33 +320,50 @@ public final class RiftClient0440NoMatirx implements KeyListener {
 
         public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
             System.out.println("reshape loc " + x + "," + y + " size " + width + "x" + height);
-            canvasRatio = (float)width/(float)height;
+//            GL2 gl = drawable.getGL().getGL2();
+//            gl.glMatrixMode( GLMatrixFunc.GL_PROJECTION );
+//            gl.glLoadIdentity();
+//
+//            // coordinate system origin at lower left with width and height same as the window
+//            new javax.media.opengl.glu.GLU().gluOrtho2D( 0.0f, width, 0.0f, height );
+//
+//            gl.glMatrixMode( GLMatrixFunc.GL_MODELVIEW );
+//            gl.glLoadIdentity();
         }
     } // end inner class
-    
+
     private void recenterView() {
+     //   Vector3f center = Vector3f.UNIT_Y.mult(eyeHeight);
+     //   Vector3f eye = new Vector3f(0.0f, eyeHeight, 0.0f);
+     //   Vector3f up = Vector3f.UNIT_Y;
+     //   pmvMatrix = new PMVMatrix();
+     //   pmvMatrix.gluLookAt(eye.x, eye.y, eye.z, center.x, center.y, center.z, up.x, up.y, up.z);
         hmd.recenterPose();
     }
 
     public final void drawPlaneXZ(final GL2 gl) {
         gl.glTexEnvf(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_DECAL);
         float[] normal = new float[] { 0f, 1f, 0f };
-        float roomSize = 8.0f;
+        float roomSize = 4.0f;
         float tileSize = 4.0f; // if same then there are two tiles per square
         gl.glBegin(GL2.GL_QUADS);
         {
             gl.glNormal3fv(normal, 0);
             gl.glColor4f(1f, 1f, 1f, 1f);
             gl.glTexCoord2f(0f, 0f);
-            gl.glVertex3f(-roomSize, 0f, roomSize);
-            gl.glTexCoord2f(tileSize, 0f);
-            gl.glVertex3f(roomSize, 0f, roomSize);
-            gl.glTexCoord2f(tileSize, tileSize);
-            gl.glVertex3f(roomSize, 0f, -roomSize);
-            gl.glTexCoord2f(0f, tileSize);
             gl.glVertex3f(-roomSize, 0f, -roomSize);
+            gl.glTexCoord2f(tileSize, 0f);
+            gl.glVertex3f(roomSize, 0f, -roomSize);
+            gl.glTexCoord2f(tileSize, tileSize);
+            gl.glVertex3f(roomSize, 0f, roomSize);
+            gl.glTexCoord2f(0f, tileSize);
+            gl.glVertex3f(-roomSize, 0f, roomSize);
         }
         gl.glEnd();
+    }
+    
+    public Matrix4f toMatrix4f(OvrMatrix4f m) {
+        return new org.saintandreas.math.Matrix4f(m.M).transpose();
     }
 
     public void run() {
@@ -311,7 +420,8 @@ public final class RiftClient0440NoMatirx implements KeyListener {
         System.out.println("step 5 - FOV");
         for (int eye = 0; eye < 2; ++eye) {
             fovPorts[eye] = hmd.DefaultEyeFov[eye];
-            projections[eye] = RiftUtils.toMatrix4f(Hmd.getPerspectiveProjection(fovPorts[eye], 0.1f, 1000000f, true));
+            projections[eye] = toMatrix4f(Hmd.getPerspectiveProjection(fovPorts[eye], 1.0f, 25000.0f, true));
+            rawProjections[eye] = Hmd.getPerspectiveProjection(fovPorts[eye], 1.0f, 25000.0f, true);
         }
 
         // step 6 - player params
@@ -354,7 +464,14 @@ public final class RiftClient0440NoMatirx implements KeyListener {
         // glWindow.setFullscreen(true); //only works on primary?
         glWindow.addKeyListener(this);
         glWindow.addGLEventListener(new DK2EventListener());
+
         glWindow.setVisible(true);
+//        NativeWindowFactoryImpl.addCustomShutdownHook(true, new Runnable() {
+//            public void run() {
+//                System.out.println("STOP");
+//                shutdown();
+//            }
+//        });
 
         // step 8 - animator loop
         System.out.println("step 8 - animator loop");
@@ -389,7 +506,8 @@ public final class RiftClient0440NoMatirx implements KeyListener {
                     System.out.println("glWindow.destroy - done");
                 }
             } finally {
-                System.out.println("done.");
+                System.out.println("3");
+                // switch mon
             }
         }
     }
@@ -398,16 +516,25 @@ public final class RiftClient0440NoMatirx implements KeyListener {
     public void keyPressed(KeyEvent e) {
     }
 
-    volatile boolean hswDone = false;
+    static boolean hswDone = false;
 
     public void keyReleased(KeyEvent e) {
         System.out.println("hmd.getHSWDisplayState().Displayed=" + hmd.getHSWDisplayState().Displayed);
+
         if (!hswDone && hmd.getHSWDisplayState().Displayed == 1) {
             hmd.dismissHSWDisplay();
             hswDone = true;
         }
+
         if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
             shutdown();
+        }
+        if (e.getKeyCode() == KeyEvent.VK_F5) {
+//            new Thread() {
+//                public void run() {
+//                    glWindow.setFullscreen(!glWindow.isFullscreen());
+//                }
+//            }.start();
         }
         if (e.getKeyCode() == KeyEvent.VK_R) {
             recenterView();
@@ -415,7 +542,7 @@ public final class RiftClient0440NoMatirx implements KeyListener {
     }
 
     public static void main(String[] args) {
-        new RiftClient0440NoMatirx().run();
+        new RiftClient0440PVM().run();
     }
 
 }

@@ -1,17 +1,23 @@
-package com.sunshineapps.riftexample;
+package com.sunshineapps.riftexample.withmatrix;
 
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Chromatic;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_TimeWarp;
 import static com.oculusvr.capi.OvrLibrary.ovrDistortionCaps.ovrDistortionCap_Vignette;
+import static com.oculusvr.capi.OvrLibrary.ovrEyeType.ovrEye_Count;
+import static com.oculusvr.capi.OvrLibrary.ovrEyeType.ovrEye_Left;
+import static com.oculusvr.capi.OvrLibrary.ovrEyeType.ovrEye_Right;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_MagYawCorrection;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Orientation;
 import static com.oculusvr.capi.OvrLibrary.ovrTrackingCaps.ovrTrackingCap_Position;
 
-import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.media.opengl.GL2;
 import javax.media.opengl.GLAutoDrawable;
@@ -21,10 +27,8 @@ import javax.media.opengl.GLProfile;
 import javax.media.opengl.fixedfunc.GLLightingFunc;
 import javax.media.opengl.fixedfunc.GLMatrixFunc;
 
-import jogamp.nativewindow.NativeWindowFactoryImpl;
-
-import org.saintandreas.gl.MatrixStack;
 import org.saintandreas.math.Matrix4f;
+import org.saintandreas.math.Quaternion;
 import org.saintandreas.math.Vector3f;
 
 import com.jogamp.common.nio.Buffers;
@@ -39,23 +43,24 @@ import com.jogamp.newt.opengl.GLWindow;
 import com.jogamp.opengl.util.Animator;
 import com.oculusvr.capi.EyeRenderDesc;
 import com.oculusvr.capi.FovPort;
+import com.oculusvr.capi.GLTexture;
+import com.oculusvr.capi.GLTextureData;
 import com.oculusvr.capi.Hmd;
 import com.oculusvr.capi.OvrLibrary;
-import com.oculusvr.capi.OvrLibrary.ovrEyeType;
+import com.oculusvr.capi.OvrMatrix4f;
+import com.oculusvr.capi.OvrQuaternionf;
 import com.oculusvr.capi.OvrRecti;
 import com.oculusvr.capi.OvrSizei;
 import com.oculusvr.capi.OvrVector2i;
 import com.oculusvr.capi.OvrVector3f;
 import com.oculusvr.capi.Posef;
 import com.oculusvr.capi.RenderAPIConfig;
-import com.oculusvr.capi.Texture;
 import com.oculusvr.capi.TextureHeader;
 import com.sunshineapps.riftexample.thirdparty.FixedTexture;
 import com.sunshineapps.riftexample.thirdparty.FixedTexture.BuiltinTexture;
 import com.sunshineapps.riftexample.thirdparty.FrameBuffer;
-import com.sunshineapps.riftexample.thirdparty.RiftUtils;
 
-public class RiftClient0430 implements KeyListener {
+public final class RiftClient0440 implements KeyListener {
     private final AtomicBoolean shutdownRunning = new AtomicBoolean(false);
     private final boolean useDebugHMD = true;
     
@@ -69,21 +74,33 @@ public class RiftClient0430 implements KeyListener {
     private final OvrVector3f eyeOffsets[] = (OvrVector3f[]) new OvrVector3f().toArray(2);
     private final OvrRecti[] eyeRenderViewport = (OvrRecti[]) new OvrRecti().toArray(2);
     private final Posef poses[] = (Posef[]) new Posef().toArray(2);
-    private final Texture eyeTextures[] = (Texture[]) new Texture().toArray(2);
+    private final GLTexture eyeTextures[] = (GLTexture[]) new GLTexture().toArray(2);
     private final FovPort fovPorts[] = (FovPort[]) new FovPort().toArray(2);
     private final Matrix4f projections[] = new Matrix4f[2];
-    private final int fboIds[] = new int[2];
     private float ipd = OvrLibrary.OVR_DEFAULT_IPD;
     private float eyeHeight = OvrLibrary.OVR_DEFAULT_EYE_HEIGHT;
 
     // Scene
     private Matrix4f player;
+    
+    //FPS
+    private final int fpsReportingPeriodSeconds = 5;
+    private final ScheduledExecutorService fpsCounter = Executors.newSingleThreadScheduledExecutor();
+    private final AtomicInteger frames = new AtomicInteger(0);
+    private final AtomicInteger fps = new AtomicInteger(0);
+    Runnable fpsJob = new Runnable() {
+        public void run() {
+            int frameCount = frames.getAndSet(0);
+            fps.set(frameCount/fpsReportingPeriodSeconds);
+            frames.addAndGet(frameCount-(fps.get()*fpsReportingPeriodSeconds));
+            System.out.println(frameCount+" frames in "+fpsReportingPeriodSeconds+"s. "+fps.get()+"fps");
+        }
+    };
 
     private final class DK2EventListener implements GLEventListener {
-        private FrameBuffer leftEye;
-        private FrameBuffer rightEye;
         private final FloatBuffer projectionDFB[];
         private final FloatBuffer modelviewDFB;
+        private FrameBuffer eyeDFB[];        
         private FixedTexture cheq;
 
         public DK2EventListener() {
@@ -98,19 +115,18 @@ public class RiftClient0430 implements KeyListener {
         public void init(GLAutoDrawable drawable) {
             final GL2 gl = drawable.getGL().getGL2();
             gl.glClearColor(.42f, .67f, .87f, 1f);
+            
+            gl.glEnable(GL2.GL_CULL_FACE);
+            gl.glFrontFace(GL2.GL_CCW);
 
             // Lighting
-            float[] lightPos = new float[4];
-            lightPos[0] = 0.5f;
-            lightPos[1] = 0;
-            lightPos[2] = 1f;
-            lightPos[3] = 0.0001f;
             gl.glEnable(GLLightingFunc.GL_LIGHTING);
             gl.glEnable(GLLightingFunc.GL_LIGHT0);
             gl.glEnable(GL2.GL_COLOR_MATERIAL);
             float[] noAmbient = { 0.2f, 0.2f, 0.2f, 1f };
             float[] spec = { 1f, 1f, 1f, 1f };
             float[] diffuse = { 1f, 1f, 1f, 1f };
+            float[] lightPos = { 0.5f, 0.0f, 1.0f, 0.0001f};
             gl.glLightfv(GLLightingFunc.GL_LIGHT0, GLLightingFunc.GL_AMBIENT, noAmbient, 0);
             gl.glLightfv(GLLightingFunc.GL_LIGHT0, GLLightingFunc.GL_SPECULAR, spec, 0);
             gl.glLightfv(GLLightingFunc.GL_LIGHT0, GLLightingFunc.GL_DIFFUSE, diffuse, 0);
@@ -123,7 +139,7 @@ public class RiftClient0430 implements KeyListener {
             gl.glEnableClientState(GL2.GL_TEXTURE_COORD_ARRAY);
 
             RenderAPIConfig rc = new RenderAPIConfig();
-            rc.Header.RTSize = hmd.Resolution;
+            rc.Header.BackBufferSize = hmd.Resolution;
             rc.Header.Multisample = 1;
             int distortionCaps = ovrDistortionCap_Chromatic | ovrDistortionCap_TimeWarp | ovrDistortionCap_Vignette;
             EyeRenderDesc eyeRenderDescs[] = hmd.configureRendering(rc, distortionCaps, fovPorts);
@@ -133,19 +149,40 @@ public class RiftClient0430 implements KeyListener {
                 eyeOffsets[eye].z = eyeRenderDescs[eye].HmdToEyeViewOffset.z;
             }
 
-            leftEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Left].Size);
-            rightEye = new FrameBuffer(gl, eyeRenderViewport[ovrEyeType.ovrEye_Right].Size);
-            fboIds[ovrEyeType.ovrEye_Left] = leftEye.getId();
-            fboIds[ovrEyeType.ovrEye_Right] = rightEye.getId();
+            eyeDFB = new FrameBuffer[2];
+            eyeDFB[ovrEye_Left] = new FrameBuffer(gl, eyeRenderViewport[ovrEye_Left].Size);
+            eyeDFB[ovrEye_Right] = new FrameBuffer(gl, eyeRenderViewport[ovrEye_Right].Size);
 
-            eyeTextures[ovrEyeType.ovrEye_Left].TextureId = leftEye.getTextureId();
-            eyeTextures[ovrEyeType.ovrEye_Right].TextureId = rightEye.getTextureId();
+            eyeTextures[ovrEye_Left].ogl.TexId = eyeDFB[ovrEye_Left].getTextureId();
+            eyeTextures[ovrEye_Right].ogl.TexId = eyeDFB[ovrEye_Right].getTextureId();
 
             // scene prep
             gl.glEnable(GL2.GL_TEXTURE_2D);
-            cheq = FixedTexture.createBuiltinTexture(gl, BuiltinTexture.tex_checker);
+            cheq = new FixedTexture(gl, BuiltinTexture.tex_checker);
             gl.glDisable(GL2.GL_TEXTURE_2D);
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
+            
+            // initial matrix stuff
+            gl.glMatrixMode(GL2.GL_PROJECTION);
+            for (int eye = 0; eye < 2; ++eye) {
+                MatrixStack.PROJECTION.set(projections[eye]);
+                gl.glMatrixMode(GL2.GL_PROJECTION);
+                MatrixStack.PROJECTION.top().fillFloatBuffer(projectionDFB[eye], true);
+                projectionDFB[eye].rewind();
+                gl.glLoadMatrixf(projectionDFB[eye]);
+            }
+
+            gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
+            gl.glLoadIdentity();
+            recenterView();
+            MatrixStack.MODELVIEW.set(player.invert());
+            modelviewDFB.clear();
+            MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
+            modelviewDFB.rewind();
+            gl.glLoadMatrixf(modelviewDFB);
+            
+            //fps
+            fpsCounter.scheduleAtFixedRate(fpsJob, 0, fpsReportingPeriodSeconds, TimeUnit.SECONDS); 
         }
 
         public void dispose(GLAutoDrawable drawable) {
@@ -157,13 +194,13 @@ public class RiftClient0430 implements KeyListener {
             hmd.beginFrameTiming(++frameCount);
             GL2 gl = drawable.getGL().getGL2();
             Posef eyePoses[] = hmd.getEyePoses(frameCount, eyeOffsets);
-            for (int eyeIndex = 0; eyeIndex < ovrEyeType.ovrEye_Count; eyeIndex++) {
+            for (int eyeIndex = 0; eyeIndex < ovrEye_Count; eyeIndex++) {
                 int eye = hmd.EyeRenderOrder[eyeIndex];
                 Posef pose = eyePoses[eye];
                 poses[eye].Orientation = pose.Orientation;
                 poses[eye].Position = pose.Position;
 
-                gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, fboIds[eye]);
+                gl.glBindFramebuffer(GL2.GL_FRAMEBUFFER, eyeDFB[eye].getId());
                 gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
 
                 gl.glMatrixMode(GL2.GL_PROJECTION);
@@ -173,8 +210,8 @@ public class RiftClient0430 implements KeyListener {
                 MatrixStack mv = MatrixStack.MODELVIEW;
                 mv.push();
                 {
-                    mv.preTranslate(RiftUtils.toVector3f(poses[eye].Position).mult(-1));
-                    mv.preRotate(RiftUtils.toQuaternion(poses[eye].Orientation).inverse());
+                    mv.preTranslate(toVector3f(poses[eye].Position).mult(-1));
+                    mv.preRotate(toQuaternion(poses[eye].Orientation).inverse());
                     mv.translate(new Vector3f(0, eyeHeight, 0));
                     modelviewDFB.clear();
                     MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
@@ -195,32 +232,12 @@ public class RiftClient0430 implements KeyListener {
             gl.glBindTexture(GL2.GL_TEXTURE_2D, 0);
             gl.glDisable(GL2.GL_TEXTURE_2D);
 
+            frames.incrementAndGet();
             hmd.endFrame(poses, eyeTextures);
         }
 
         public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
             System.out.println("reshape loc " + x + "," + y + " size " + width + "x" + height);
-            GL2 gl = drawable.getGL().getGL2();
-
-            gl.glMatrixMode(GL2.GL_PROJECTION);
-            for (int eye = 0; eye < 2; ++eye) {
-                MatrixStack.PROJECTION.set(projections[eye]);
-                gl.glMatrixMode(GL2.GL_PROJECTION);
-                MatrixStack.PROJECTION.top().fillFloatBuffer(projectionDFB[eye], true);
-                projectionDFB[eye].rewind();
-                gl.glLoadMatrixf(projectionDFB[eye]);
-            }
-
-            gl.glMatrixMode(GLMatrixFunc.GL_MODELVIEW);
-            gl.glLoadIdentity();
-            recenterView();
-            MatrixStack.MODELVIEW.set(player.invert());
-
-            modelviewDFB.clear();
-            MatrixStack.MODELVIEW.top().fillFloatBuffer(modelviewDFB, true);
-            modelviewDFB.rewind();
-            gl.glLoadMatrixf(modelviewDFB);
-
         }
     } // end inner class
 
@@ -235,24 +252,38 @@ public class RiftClient0430 implements KeyListener {
 
     public final void drawPlaneXZ(final GL2 gl) {
         gl.glTexEnvf(GL2.GL_TEXTURE_ENV, GL2.GL_TEXTURE_ENV_MODE, GL2.GL_DECAL);
-        float[] normal = new float[] { 1f, 0f, 1f };
+        float[] normal = new float[] { 0f, 1f, 0f };
         float roomSize = 4.0f;
         float tileSize = 4.0f; // if same then there are two tiles per square
         gl.glBegin(GL2.GL_QUADS);
-        gl.glNormal3fv(normal, 0);
-        gl.glColor4f(1f, 1f, 1f, 1f);
-        gl.glTexCoord2f(0f, 0f);
-        gl.glVertex3f(-roomSize, 0f, -roomSize);
-        gl.glTexCoord2f(tileSize, 0f);
-        gl.glVertex3f(roomSize, 0f, -roomSize);
-        gl.glTexCoord2f(tileSize, tileSize);
-        gl.glVertex3f(roomSize, 0f, roomSize);
-        gl.glTexCoord2f(0f, tileSize);
-        gl.glVertex3f(-roomSize, 0f, roomSize);
+        {
+            gl.glNormal3fv(normal, 0);
+            gl.glColor4f(1f, 1f, 1f, 1f);
+            gl.glTexCoord2f(0f, 0f);
+            gl.glVertex3f(-roomSize, 0f, roomSize);
+            gl.glTexCoord2f(tileSize, 0f);
+            gl.glVertex3f(roomSize, 0f, roomSize);
+            gl.glTexCoord2f(tileSize, tileSize);
+            gl.glVertex3f(roomSize, 0f, -roomSize);
+            gl.glTexCoord2f(0f, tileSize);
+            gl.glVertex3f(-roomSize, 0f, -roomSize);
+        }
         gl.glEnd();
     }
+    public Vector3f toVector3f(OvrVector3f v) {
+        return new Vector3f(v.x, v.y, v.z);
+    }
+    
+    public Quaternion toQuaternion(OvrQuaternionf q) {
+        return new Quaternion(q.x, q.y, q.z, q.w);
+    }
 
+    public Matrix4f toMatrix4f(OvrMatrix4f m) {
+        return new org.saintandreas.math.Matrix4f(m.M).transpose();
+    }
+    
     public void run() {
+    	System.out.println(""+System.getProperty("java.version"));
         // step 1 - hmd init
         System.out.println("step 1 - hmd init");
         Hmd.initialize();
@@ -272,7 +303,6 @@ public class RiftClient0430 implements KeyListener {
                 return;
             }
         }
-        hmd.enableHswDisplay(false);
 
         // step 3 - hmd size queries
         System.out.println("step 3 - hmd sizes");
@@ -293,8 +323,8 @@ public class RiftClient0430 implements KeyListener {
         eyeRenderViewport[1].Pos = eyeRenderViewport[0].Pos;
         eyeRenderViewport[1].Size = renderTargetEyeSize;
 
-        eyeTextures[0].Header = new TextureHeader(renderTargetEyeSize, eyeRenderViewport[0]);
-        eyeTextures[1].Header = new TextureHeader(renderTargetEyeSize, eyeRenderViewport[1]);
+        eyeTextures[0].ogl = new GLTextureData(new TextureHeader(renderTargetEyeSize, eyeRenderViewport[0]));
+        eyeTextures[1].ogl = new GLTextureData(new TextureHeader(renderTargetEyeSize, eyeRenderViewport[1]));
 
         // step 4 - tracking
         System.out.println("step 4 - tracking");
@@ -306,7 +336,7 @@ public class RiftClient0430 implements KeyListener {
         System.out.println("step 5 - FOV");
         for (int eye = 0; eye < 2; ++eye) {
             fovPorts[eye] = hmd.DefaultEyeFov[eye];
-            projections[eye] = RiftUtils.toMatrix4f(Hmd.getPerspectiveProjection(fovPorts[eye], 0.1f, 1000000f, true));
+            projections[eye] = toMatrix4f(Hmd.getPerspectiveProjection(fovPorts[eye], 1.0f, 25000.0f, true));
         }
 
         // step 6 - player params
@@ -325,7 +355,7 @@ public class RiftClient0430 implements KeyListener {
         for (MonitorDevice monitor : screen.getMonitorDevices()) {
             if (monitor.getViewport().getWidth() == resolution.w && monitor.getViewport().getHeight() == resolution.h) {
                 riftMonitor.add(monitor);
-                System.out.println("Found Rift Monitor");
+                System.out.println("Found Rift Monitor: "+ monitor.hashCode());
                 break;
             }
         }
@@ -370,6 +400,7 @@ public class RiftClient0430 implements KeyListener {
         if (shutdownRunning.compareAndSet(false, true)) {
             try {
                 System.out.println("doing SHUTDOWN");
+                fpsCounter.shutdown();
                 if (animator != null) {
                     System.out.println("animator.stop");
                     animator.stop();
@@ -414,19 +445,19 @@ public class RiftClient0430 implements KeyListener {
             shutdown();
         }
         if (e.getKeyCode() == KeyEvent.VK_F5) {
-            new Thread() {
-                public void run() {
-                    glWindow.setFullscreen(!glWindow.isFullscreen());
-                }
-            }.start();
+//            new Thread() {
+//                public void run() {
+//                    glWindow.setFullscreen(!glWindow.isFullscreen());
+//                }
+//            }.start();
         }
         if (e.getKeyCode() == KeyEvent.VK_R) {
             recenterView();
         }
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        new RiftClient0430().run();
+    public static void main(String[] args) {
+        new RiftClient0440().run();
     }
 
 }

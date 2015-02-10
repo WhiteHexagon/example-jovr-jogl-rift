@@ -1,4 +1,4 @@
-package com.sunshineapps.riftexample.thirdparty;
+package com.sunshineapps.riftexample.withmatrix;
 
 import org.saintandreas.math.Matrix3f;
 import org.saintandreas.math.Matrix4f;

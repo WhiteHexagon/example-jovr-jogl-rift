@@ -1,4 +1,4 @@
-package com.sunshineapps.riftexample.thirdparty;
+package com.sunshineapps.riftexample.withmatrix;
 
 import java.util.Stack;
 import java.util.function.Consumer;
